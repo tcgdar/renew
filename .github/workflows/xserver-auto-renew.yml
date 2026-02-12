@@ -12,9 +12,9 @@ jobs:
     permissions:
       contents: write
       actions: write
-    
+
     timeout-minutes: 15
-    
+
     steps:
       - name: Checkout private repo
         uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          
+
       - name: 📦 安装 Python 依赖
         # 显式切换到 scripts 目录进行安装
         run: |
@@ -35,15 +35,15 @@ jobs:
           if [ -f "scripts/requirements.txt" ]; then
             pip install -r scripts/requirements.txt
           fi
-          
+
       - name: 🎭 安装 Playwright 浏览器
         run: playwright install chromium
-        
+
       - name: 🎌 安装日文字体支持
         run: |
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk fonts-noto-cjk-extra
-        
+
       - name: 🚀 运行 XServer 完全自动化登录
         env:
           XSERVER_EMAIL: ${{ secrets.XSERVER_EMAIL }}
@@ -57,7 +57,7 @@ jobs:
           # 运行完后如果生成了 README.md 或图片，将其移动到根目录以便后续步骤处理
           mv README.md .. || true
           mv *.png .. || true
-        
+
       - name: 📝 提交README.md到仓库
         if: always()
         run: |
@@ -68,7 +68,8 @@ jobs:
           git push
 
       - name: 📱 发送Telegram通知
-        if: always() && secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+        # 修正点：使用 env 上下文进行判断
+        if: always() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -82,18 +83,19 @@ jobs:
             OLD_DATE="N/A"
             NEW_DATE=""
           fi
-          
-          MESSAGE="🐢Xserver续期通知%0A📅执行时间：$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')%0A%0A🖥️服务器：🇯🇵Xserver(Mc)%0A📊续期结果：${RENEWAL_STATUS}%0A🕛️旧到期时间：${OLD_DATE}"
-          
+
+          # 使用 printf 处理换行，避免特殊字符导致 shell 脚本报错
+          MESSAGE=$(printf "🐢Xserver续期通知\n📅执行时间：$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')\n\n🖥️服务器：🇯🇵Xserver(Mc)\n📊续期结果：${RENEWAL_STATUS}\n🕛️旧到期时间：${OLD_DATE}")
+
           if [ ! -z "$NEW_DATE" ]; then
-            MESSAGE="${MESSAGE}%0A🕡️新到期时间：${NEW_DATE}"
+            MESSAGE="${MESSAGE}$(printf "\n🕡️新到期时间：${NEW_DATE}")"
           fi
-          
-          # 发送消息 (注意：Markdown 在 curl 中传参时，换行符建议用 %0A)
+
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="${MESSAGE}"
-        
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}" \
+            -d "parse_mode=Markdown"
+
       - name: 📸 上传运行结果
         if: always()
         uses: actions/upload-artifact@v4
@@ -101,7 +103,7 @@ jobs:
           name: xserver-auto-login-results-${{ github.run_number }}
           path: "*.png"
           retention-days: 1
-          
+
       - name: 🧹 清理旧的工作流运行记录
         uses: MajorScruffy/delete-old-workflow-runs@v0.3.0
         env:
