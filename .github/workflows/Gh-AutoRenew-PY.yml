@@ -1,0 +1,60 @@
+name: Greathost-AutoRenew-PY
+
+on:
+  schedule:
+    - cron: '0 */11 * * *'  # 每11小时运行一次
+  workflow_dispatch:        # 允许手动运行
+
+jobs:
+  Auto_renew_greathost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/ghrenew
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: scripts
+
+      # 1. 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 2. 安装 Chrome 浏览器 (Selenium-Wire 需要)
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      # 3. 安装依赖
+      # 注意：必须安装 selenium-wire, blinker(特定版本防报错), requests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "scripts/requirements.txt" ]; then
+            pip install -r scripts/requirements.txt
+          else
+            pip install selenium==4.18.1 selenium-wire==5.1.0 blinker==1.7.0 requests
+          fi
+
+      # 4. 运行 Python 脚本
+      - name: Run renew script
+        env:
+          GREATHOST_EMAIL: ${{ secrets.GREATHOST_EMAIL }}
+          GREATHOST_PASSWORD: ${{ secrets.GREATHOST_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run:
+          cd scripts
+          python greathost.py
+
+      # 5. 上传调试截图 (如果脚本里有 save_screenshot 的话)
+      - name: Upload Error Page
+        if: failure() # 仅在脚本报错失败时执行
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-screenshot
+          path: error_page.html
+          retention-days: 3 # 保存3天
