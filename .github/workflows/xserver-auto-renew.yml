@@ -58,15 +58,6 @@ jobs:
           mv README.md .. || true
           mv *.png .. || true
 
-      - name: 📝 提交README.md到仓库
-        if: always()
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git add README.md
-          git diff --staged --quiet || git commit -m "📊 自动更新续期状态报告 [$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')]"
-          git push
-
       - name: 📱 发送Telegram通知
         # 修正点：使用 env 上下文进行判断
         if: always() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
